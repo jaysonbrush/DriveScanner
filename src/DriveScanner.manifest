@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity type="win32" name="Scanner" version="1.0.0.0" processorArchitecture="amd64"/>
-  <description>Scanner - disk usage viewer</description>
+  <assemblyIdentity type="win32" name="DriveScanner" version="1.0.0.0" processorArchitecture="amd64"/>
+  <description>DriveScanner - disk usage viewer</description>
   <dependency>
     <dependentAssembly>
       <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0"

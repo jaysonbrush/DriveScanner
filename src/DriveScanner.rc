@@ -1,7 +1,7 @@
 #include <windows.h>
 
-1 ICON "scanner.ico"
-1 RT_MANIFEST "scanner.manifest"
+1 ICON "DriveScanner.ico"
+1 RT_MANIFEST "DriveScanner.manifest"
 
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION 1,0,0,0
@@ -13,11 +13,11 @@ BEGIN
     BEGIN
         BLOCK "040904B0"
         BEGIN
-            VALUE "FileDescription", "Scanner - disk usage viewer"
+            VALUE "FileDescription", "DriveScanner - disk usage viewer"
             VALUE "FileVersion", "1.0.0"
-            VALUE "ProductName", "Scanner"
+            VALUE "ProductName", "DriveScanner"
             VALUE "ProductVersion", "1.0.0"
-            VALUE "OriginalFilename", "scanner.exe"
+            VALUE "OriginalFilename", "DriveScanner.exe"
         END
     END
     BLOCK "VarFileInfo"

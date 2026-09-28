@@ -1,4 +1,4 @@
-// Scanner - portable disk usage viewer.
+// DriveScanner - portable disk usage viewer.
 // Win32 + Direct2D, no runtime dependencies. See README.md for build steps.
 
 #define NOMINMAX
@@ -34,17 +34,17 @@ static const double PI = 3.14159265358979323846;
 
 static void* xalloc(size_t n) {
     void* p = HeapAlloc(GetProcessHeap(), 0, n);
-    if (!p) { MessageBoxW(NULL, L"Out of memory.", L"Scanner", MB_ICONERROR); ExitProcess(1); }
+    if (!p) { MessageBoxW(NULL, L"Out of memory.", L"DriveScanner", MB_ICONERROR); ExitProcess(1); }
     return p;
 }
 static void* xcalloc(size_t n) {
     void* p = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, n);
-    if (!p) { MessageBoxW(NULL, L"Out of memory.", L"Scanner", MB_ICONERROR); ExitProcess(1); }
+    if (!p) { MessageBoxW(NULL, L"Out of memory.", L"DriveScanner", MB_ICONERROR); ExitProcess(1); }
     return p;
 }
 static void* xrealloc(void* p, size_t n) {
     p = p ? HeapReAlloc(GetProcessHeap(), 0, p, n) : HeapAlloc(GetProcessHeap(), 0, n);
-    if (!p) { MessageBoxW(NULL, L"Out of memory.", L"Scanner", MB_ICONERROR); ExitProcess(1); }
+    if (!p) { MessageBoxW(NULL, L"Out of memory.", L"DriveScanner", MB_ICONERROR); ExitProcess(1); }
     return p;
 }
 static void xfree(void* p) { if (p) HeapFree(GetProcessHeap(), 0, p); }
@@ -1509,7 +1509,7 @@ static LRESULT CALLBACK main_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         SendMessageW(G.freeChk, BM_SETCHECK, BST_CHECKED, 0);
         G.status = CreateWindowExW(0, STATUSCLASSNAMEW, NULL, WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
                                    0, 0, 0, 0, h, NULL, G.inst, NULL);
-        G.view = CreateWindowExW(0, L"ScannerView", NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+        G.view = CreateWindowExW(0, L"DriveScannerView", NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
                                  0, 0, 0, 0, h, NULL, G.inst, NULL);
         update_fonts();
         fill_drives();
@@ -1595,7 +1595,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int show) {
     InitCommonControlsEx(&icc);
     if (FAILED(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &G.d2d)) ||
         FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown**)&G.dw))) {
-        MessageBoxW(NULL, L"Direct2D is not available.", L"Scanner", MB_ICONERROR);
+        MessageBoxW(NULL, L"Direct2D is not available.", L"DriveScanner", MB_ICONERROR);
         return 1;
     }
     const wchar_t* ui = L"Segoe UI";
@@ -1611,17 +1611,17 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int show) {
     wc.lpfnWndProc = view_proc;
     wc.hInstance = inst;
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.lpszClassName = L"ScannerView";
+    wc.lpszClassName = L"DriveScannerView";
     RegisterClassExW(&wc);
     wc.lpfnWndProc = main_proc;
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.hIcon = LoadIconW(inst, MAKEINTRESOURCEW(1));
     wc.hIconSm = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
                                    GetSystemMetrics(SM_CYSMICON), 0);
-    wc.lpszClassName = L"ScannerMain";
+    wc.lpszClassName = L"DriveScannerMain";
     RegisterClassExW(&wc);
 
-    HWND h = CreateWindowExW(0, L"ScannerMain", L"Scanner", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+    HWND h = CreateWindowExW(0, L"DriveScannerMain", L"DriveScanner", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
                              CW_USEDEFAULT, CW_USEDEFAULT, 1100, 780, NULL, NULL, inst, NULL);
     SetWindowPos(h, NULL, 0, 0, S(1100), S(780), SWP_NOMOVE | SWP_NOZORDER);
     ShowWindow(h, show);

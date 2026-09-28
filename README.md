@@ -1,10 +1,11 @@
-# Scanner
+# DriveScanner
 
 A small, portable disk usage viewer for Windows.
 
 - One `.exe` of about 110 KB. There's no installer, no registry entries, and no settings files.
 - It scans `C:\` on launch. Pick any other drive from the dropdown.
 - **Rings view** (default): each ring outward is one folder level deeper, and a slice's angle is its share of the parent folder. Hover a slice for details, click a folder to zoom into it, and click the center (or press Backspace) to go up.
+- **Free space** (checkbox, on by default): at the drive level, the inner ring includes a gray "Free" slice so used and free space are shown to scale. The center shows the drive's used and total size.
 - **List view** (checkbox): a tree sorted by size, with a "% of parent" bar on every row.
 - The breadcrumb at the top jumps back to any parent folder.
 - Right-click any item for **Open in Explorer** or **Copy path**.
@@ -27,14 +28,14 @@ The build needs [Zig](https://ziglang.org/download/), which is a single portable
 .\build.ps1
 ```
 
-This produces `scanner.exe` in the project root. The icon (`src\scanner.ico`) is created by `tools\make-icon.ps1` if it's missing.
+This produces `DriveScanner.exe` in the project root. The icon (`src\DriveScanner.ico`) is created by `tools\make-icon.ps1` if it's missing.
 
 ## Layout
 
 ```
-src\main.cpp          the whole app: scanners, Direct2D views, window
-src\scanner.rc        icon, manifest, version info
-src\scanner.manifest  per-monitor DPI, visual styles, long paths
-tools\make-icon.ps1   generates the icon
-build.ps1             build script
+src\main.cpp                the whole app: scanners, Direct2D views, window
+src\DriveScanner.rc         icon, manifest, version info
+src\DriveScanner.manifest   per-monitor DPI, visual styles, long paths
+tools\make-icon.ps1         generates the icon
+build.ps1                   build script
 ```

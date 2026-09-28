@@ -1,6 +1,6 @@
-# Generates src\scanner.ico (rings motif) at 16/24/32/48/256 px, PNG-encoded entries.
+# Generates src\DriveScanner.ico (rings motif) at 16/24/32/48/256 px, PNG-encoded entries.
 Add-Type -AssemblyName System.Drawing
-$out = Join-Path $PSScriptRoot '..\src\scanner.ico'
+$out = Join-Path $PSScriptRoot '..\src\DriveScanner.ico'
 $sizes = 16, 24, 32, 48, 256
 $pngs = foreach ($s in $sizes) {
     $bmp = New-Object System.Drawing.Bitmap $s, $s
