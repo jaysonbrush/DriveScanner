@@ -654,7 +654,7 @@ static struct {
     Seg* segs;
     u32 segCount, segCap;
     bool layoutDirty;
-    float cx, cy, r0, ringW;
+    float cx, cy, r0, ringW, hueScale;
 
     u32 hover;
     bool hoverCenter;
@@ -717,7 +717,9 @@ static void node_path(u32 i, wchar_t* out, int cap) {
     if (len == 2) { out[2] = L'\\'; out[3] = 0; }
 }
 
-static bool has_children(u32 i) { return G.tree->n[i].first != NONE; }
+static const u32 FREE_SPACE = 0xFFFFFFFEu;  // pseudo-node: the drive's free space slice in the rings
+
+static bool has_children(u32 i) { return i < G.tree->count && G.tree->n[i].first != NONE; }
 
 // ---------------------------------------------------------------- Direct2D helpers
 
@@ -847,12 +849,23 @@ static void layout_rings(D2D1_SIZE_F sz) {
     if (R < 60) { G.r0 = G.ringW = 0; return; }
     G.r0 = R * 0.2f;
     G.ringW = (R - G.r0) / LEVELS;
-    build_segs(G.root, 1, 0, 2 * PI);
+    // At the drive level, the inner ring also shows free space so used vs. free is to scale.
+    double used = (double)G.tree->n[0].size, freeb = (double)G.tree->volFree;
+    if (G.root == 0 && freeb > 0 && used + freeb > 0) {
+        double split = 2 * PI * used / (used + freeb);
+        G.hueScale = (float)(2 * PI / split);
+        build_segs(G.root, 1, 0, split);
+        add_seg(FREE_SPACE, 1, split, 2 * PI);
+    } else {
+        G.hueScale = 1.0f;
+        build_segs(G.root, 1, 0, 2 * PI);
+    }
 }
 
 static D2D1_COLOR_F seg_color(Seg* s, bool hot) {
+    if (s->node == FREE_SPACE) return rgb(hot ? 0xCDD2D9 : 0xE4E7EB);
     bool dir = (G.tree->n[s->node].flags & NF_DIR) != 0;
-    float hue = (s->a0 + s->a1) * 0.5f * 180.0f / (float)PI;
+    float hue = (s->a0 + s->a1) * 0.5f * G.hueScale * 180.0f / (float)PI;  // full rainbow over the used span
     float l = (dir ? 0.56f : 0.74f) + 0.045f * (s->depth - 1);
     if (l > 0.88f) l = 0.88f;
     if (hot) l -= 0.14f;
@@ -882,27 +895,42 @@ static void draw_seg_label(Seg* s) {
     float wr = G.ringW / (sn > 0.01f ? sn : 0.01f), wa = arc / (cs > 0.01f ? cs : 0.01f);
     float hr = G.ringW / (cs > 0.01f ? cs : 0.01f), ha = arc / (sn > 0.01f ? sn : 0.01f);
     float w = (wr < wa ? wr : wa) * 0.86f, h = (hr < ha ? hr : ha) * 0.86f;
+    u32 color = 0x202020;
+    if (s->node == FREE_SPACE) {
+        // Nothing sits outside the free slice, so label it in the empty ring beyond.
+        rMid += G.ringW;
+        w = text_width(L"Free space", 10, G.fCenter) + 4;
+        h = 18;
+        color = C_MUTED;
+    }
     if (w > 150) w = 150;
     if (w < 36 || h < 15) return;
     wchar_t name[300];
-    int len = node_name(s->node, name, 300);
+    int len = s->node == FREE_SPACE ? fmtw(name, 300, L"Free space") : node_name(s->node, name, 300);
     float px = G.cx + rMid * sinf(mid), py = G.cy - rMid * cosf(mid);
-    draw_text(name, len, G.fCenter, px - w / 2, py - 9, px + w / 2, py + 9, rgb(0x202020));
+    draw_text(name, len, G.fCenter, px - w / 2, py - 9, px + w / 2, py + 9, rgb(color));
 }
 
 static void draw_tooltip(u32 node, D2D1_SIZE_F sz) {
     Node* n = G.tree->n;
     wchar_t name[300], line2[128], sizeStr[32], files[32];
-    int nlen = node_name(node, name, 300);
-    fmt_size(n[node].size, sizeStr, 32);
-    u64 psize = n[node].parent != NONE ? n[n[node].parent].size : n[node].size;
-    double pct = psize ? 100.0 * (double)n[node].size / (double)psize : 100.0;
-    int l2;
-    if (n[node].flags & NF_DIR) {
-        fmt_num(n[node].files, files);
-        l2 = fmtw(line2, 128, L"%ls  \x00B7  %.1f%% of parent  \x00B7  %ls files", sizeStr, pct, files);
+    int nlen, l2;
+    if (node == FREE_SPACE) {
+        nlen = fmtw(name, 300, L"Free space");
+        fmt_size(G.tree->volFree, sizeStr, 32);
+        double pct = G.tree->volTotal ? 100.0 * (double)G.tree->volFree / (double)G.tree->volTotal : 0;
+        l2 = fmtw(line2, 128, L"%ls  \x00B7  %.1f%% of drive", sizeStr, pct);
     } else {
-        l2 = fmtw(line2, 128, L"%ls  \x00B7  %.1f%% of parent", sizeStr, pct);
+        nlen = node_name(node, name, 300);
+        fmt_size(n[node].size, sizeStr, 32);
+        u64 psize = n[node].parent != NONE ? n[n[node].parent].size : n[node].size;
+        double pct = psize ? 100.0 * (double)n[node].size / (double)psize : 100.0;
+        if (n[node].flags & NF_DIR) {
+            fmt_num(n[node].files, files);
+            l2 = fmtw(line2, 128, L"%ls  \x00B7  %.1f%% of parent  \x00B7  %ls files", sizeStr, pct, files);
+        } else {
+            l2 = fmtw(line2, 128, L"%ls  \x00B7  %.1f%% of parent", sizeStr, pct);
+        }
     }
     float w1 = text_width(name, nlen, G.fBold), w2 = text_width(line2, l2, G.fText);
     float w = (w1 > w2 ? w1 : w2) + 24;
@@ -1358,7 +1386,7 @@ static LRESULT CALLBACK view_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         if (!G.tree || G.job) return 0;
         u32 node = G.listMode ? (G.hoverRow >= 0 ? G.rows[G.hoverRow].node : NONE)
                               : (G.hoverCenter ? G.root : G.hover);
-        if (node == NONE) return 0;
+        if (node == NONE || node == FREE_SPACE) return 0;
         POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
         ClientToScreen(h, &pt);
         context_menu(node, pt.x, pt.y);
