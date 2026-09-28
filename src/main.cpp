@@ -631,7 +631,7 @@ static const int TOOLBAR = 48;        // toolbar height in the main window (DIPs
 
 enum { ID_COMBO = 100, ID_RESCAN, ID_LIST, ID_FREE, ID_ABOUT };
 
-static const wchar_t APP_VERSION[] = L"1.0.0";  // keep in sync with DriveScanner.rc
+static const wchar_t APP_VERSION[] = L"1.0.1";  // keep in sync with DriveScanner.rc
 
 static struct {
     HINSTANCE inst;
@@ -707,6 +707,28 @@ static D2D1_COLOR_F hsl(float h, float s, float l) {
 static const u32 C_BG = 0xFFFFFF, C_TEXT = 0x1B1B1B, C_MUTED = 0x6E6E6E, C_LINE = 0xE6E6E6,
                  C_ACCENT = 0x2563EB, C_HOVER = 0xEEF3FD, C_TRACK = 0xE9ECF1, C_CENTER = 0xF4F5F7;
 
+// Icon glyphs: Segoe MDL2 Assets on Windows 10+, Segoe UI Symbol on older systems.
+struct Glyphs { const wchar_t *family, *chevRight, *chevDown, *folder, *file, *info; };
+static const Glyphs GLYPHS_MDL2 = { L"Segoe MDL2 Assets", L"\xE76C", L"\xE70D", L"\xE8B7", L"\xE8A5", L"\xE946" };
+static const Glyphs GLYPHS_SYMBOL = { L"Segoe UI Symbol", L"\x25B8", L"\x25BE", L"\xD83D\xDCC1", L"\xD83D\xDCC4",
+                                      L"\x24D8" };
+static const Glyphs* g_glyphs = &GLYPHS_MDL2;
+
+// Windows 10 1607+ DPI functions, resolved at runtime so the app still starts on Windows 7 and 8.1.
+typedef UINT(WINAPI* PFN_GetDpiForWindow)(HWND);
+typedef BOOL(WINAPI* PFN_SystemParametersInfoForDpi)(UINT, UINT, PVOID, UINT, UINT);
+static PFN_GetDpiForWindow pGetDpiForWindow;
+static PFN_SystemParametersInfoForDpi pSystemParametersInfoForDpi;
+
+static UINT system_dpi() {
+    HDC dc = GetDC(NULL);
+    UINT d = (UINT)GetDeviceCaps(dc, LOGPIXELSX);
+    ReleaseDC(NULL, dc);
+    return d ? d : 96;
+}
+
+static UINT window_dpi(HWND h) { return pGetDpiForWindow ? pGetDpiForWindow(h) : system_dpi(); }
+
 static int node_name(u32 i, wchar_t* out, int cap) {
     Node* x = &G.tree->n[i];
     int len = x->nameLen < cap - 2 ? x->nameLen : cap - 2;
@@ -735,6 +757,7 @@ static void fill_rect(float l, float t, float r, float b, D2D1_COLOR_F c) {
 static void draw_text(const wchar_t* s, int len, IDWriteTextFormat* f, float l, float t, float r, float b,
                       D2D1_COLOR_F c) {
     if (r <= l) return;
+    if (len < 0) len = (int)wcslen(s);
     G.br->SetColor(c);
     G.rt->DrawText(s, len, f, D2D1::RectF(l, t, r, b), G.br, D2D1_DRAW_TEXT_OPTIONS_CLIP);
 }
@@ -987,7 +1010,7 @@ static void draw_rings(D2D1_SIZE_F sz) {
         draw_text(line, l3, G.fCenter, G.cx - w / 2, G.cy + 8, G.cx + w / 2, G.cy + 26, rgb(C_MUTED));
     }
     if (G.root != 0 && G.r0 > 48)
-        draw_text(L"\xE74A  Up", 5, G.fCenter, G.cx - w / 2, G.cy + 28, G.cx + w / 2, G.cy + 46,
+        draw_text(L"\x2191  Up", 5, G.fCenter, G.cx - w / 2, G.cy + 28, G.cx + w / 2, G.cy + 46,
                   rgb(G.hoverCenter ? C_ACCENT : C_MUTED));
 
     if (G.hover != NONE && G.mouseIn) draw_tooltip(G.hover, sz);
@@ -1072,11 +1095,11 @@ static void draw_list(D2D1_SIZE_F sz) {
         if (r == G.hoverRow) fill_rect(0, y, sz.width, y + ROW_H, rgb(C_HOVER));
         float ix = c.name0 + row->depth * 18.0f;
         if (x->first != NONE)
-            draw_text(G.expanded[row->node] ? L"\xE70D" : L"\xE76C", 1, G.fIcon, ix, y, ix + 16, y + ROW_H,
+            draw_text(G.expanded[row->node] ? g_glyphs->chevDown : g_glyphs->chevRight, -1, G.fIcon, ix, y, ix + 16, y + ROW_H,
                       rgb(C_MUTED));
         ix += 18;
         bool dir = (x->flags & NF_DIR) != 0;
-        draw_text(dir ? L"\xE8B7" : L"\xE8A5", 1, G.fIcon, ix, y, ix + 16, y + ROW_H,
+        draw_text(dir ? g_glyphs->folder : g_glyphs->file, -1, G.fIcon, ix, y, ix + 16, y + ROW_H,
                   rgb(dir ? 0xD9A21B : 0x8A8F98));
         ix += 22;
         wchar_t name[300];
@@ -1132,7 +1155,7 @@ static void draw_header(D2D1_SIZE_F sz) {
         }
         x += w;
         if (!last) {
-            draw_text(L"\xE76C", 1, G.fIcon, x + 4, 0, x + 20, HDR, rgb(0xA0A4AB));
+            draw_text(g_glyphs->chevRight, -1, G.fIcon, x + 4, 0, x + 20, HDR, rgb(0xA0A4AB));
             x += 24;
         }
     }
@@ -1477,14 +1500,19 @@ static wchar_t selected_drive() {
 
 static void update_fonts() {
     NONCLIENTMETRICSW ncm = { sizeof(ncm) };
-    SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0, G.dpi);
+    if (pSystemParametersInfoForDpi) {
+        pSystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0, G.dpi);
+    } else {
+        SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0);
+        ncm.lfMessageFont.lfHeight = MulDiv(ncm.lfMessageFont.lfHeight, (int)G.dpi, (int)system_dpi());
+    }
     if (G.uiFont) DeleteObject(G.uiFont);
     G.uiFont = CreateFontIndirectW(&ncm.lfMessageFont);
     HWND ctrls[] = { G.combo, G.rescan, G.listChk, G.freeChk, G.status };
     for (HWND c : ctrls) SendMessageW(c, WM_SETFONT, (WPARAM)G.uiFont, TRUE);
     if (G.iconFont) DeleteObject(G.iconFont);
     G.iconFont = CreateFontW(-S(15), 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0,
-                             L"Segoe MDL2 Assets");
+                             g_glyphs->family);
     SendMessageW(G.about, WM_SETFONT, (WPARAM)G.iconFont, TRUE);
 }
 
@@ -1542,7 +1570,7 @@ static LRESULT CALLBACK main_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_CREATE: {
         G.main = h;
-        G.dpi = GetDpiForWindow(h);
+        G.dpi = window_dpi(h);
         G.combo = CreateWindowExW(0, WC_COMBOBOXW, NULL, WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
                                   0, 0, 0, 0, h, (HMENU)ID_COMBO, G.inst, NULL);
         G.rescan = CreateWindowExW(0, WC_BUTTONW, L"Rescan", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
@@ -1553,7 +1581,7 @@ static LRESULT CALLBACK main_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                                     0, 0, 0, 0, h, (HMENU)ID_FREE, G.inst, NULL);
         G.showFree = true;
         SendMessageW(G.freeChk, BM_SETCHECK, BST_CHECKED, 0);
-        G.about = CreateWindowExW(0, WC_BUTTONW, L"\xE946", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+        G.about = CreateWindowExW(0, WC_BUTTONW, g_glyphs->info, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
                                   0, 0, 0, 0, h, (HMENU)ID_ABOUT, G.inst, NULL);
         G.tip = CreateWindowExW(0, TOOLTIPS_CLASSW, NULL, WS_POPUP | TTS_ALWAYSTIP, 0, 0, 0, 0, h, NULL, G.inst,
                                 NULL);
@@ -1650,6 +1678,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int show) {
     G.hover = NONE;
     G.hoverCrumb = G.hoverRow = -1;
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    pGetDpiForWindow = (PFN_GetDpiForWindow)(void*)GetProcAddress(user32, "GetDpiForWindow");
+    pSystemParametersInfoForDpi =
+        (PFN_SystemParametersInfoForDpi)(void*)GetProcAddress(user32, "SystemParametersInfoForDpi");
     INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_STANDARD_CLASSES | ICC_BAR_CLASSES };
     InitCommonControlsEx(&icc);
     if (FAILED(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &G.d2d)) ||
@@ -1664,7 +1696,16 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int show) {
     G.fSmall = make_format(ui, 12, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_TEXT_ALIGNMENT_LEADING);
     G.fCenter = make_format(ui, 12, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER);
     G.fTitle = make_format(ui, 15, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_TEXT_ALIGNMENT_CENTER);
-    G.fIcon = make_format(L"Segoe MDL2 Assets", 11, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER);
+    IDWriteFontCollection* fonts = NULL;
+    UINT32 fontIndex;
+    BOOL hasMdl2 = FALSE;
+    if (SUCCEEDED(G.dw->GetSystemFontCollection(&fonts, FALSE))) {
+        fonts->FindFamilyName(GLYPHS_MDL2.family, &fontIndex, &hasMdl2);
+        fonts->Release();
+    }
+    g_glyphs = hasMdl2 ? &GLYPHS_MDL2 : &GLYPHS_SYMBOL;
+    G.fIcon = make_format(g_glyphs->family, hasMdl2 ? 11.0f : 13.0f, DWRITE_FONT_WEIGHT_NORMAL,
+                          DWRITE_TEXT_ALIGNMENT_CENTER);
 
     WNDCLASSEXW wc = { sizeof(wc) };
     wc.lpfnWndProc = view_proc;
