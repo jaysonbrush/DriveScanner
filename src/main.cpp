@@ -628,12 +628,15 @@ static const float ROW_H = 26.0f;
 static const int LEVELS = 6;
 static const int TOOLBAR = 48;        // toolbar height in the main window (DIPs)
 
-enum { ID_COMBO = 100, ID_RESCAN, ID_LIST, ID_FREE };
+enum { ID_COMBO = 100, ID_RESCAN, ID_LIST, ID_FREE, ID_ABOUT };
+
+static const wchar_t APP_VERSION[] = L"1.0.0";  // keep in sync with DriveScanner.rc
 
 static struct {
     HINSTANCE inst;
     HWND main, view, combo, rescan, listChk, freeChk, status;
-    HFONT uiFont;
+    HFONT uiFont, iconFont;
+    HWND about, tip;
     UINT dpi;
 
     ID2D1Factory* d2d;
@@ -1475,6 +1478,44 @@ static void update_fonts() {
     G.uiFont = CreateFontIndirectW(&ncm.lfMessageFont);
     HWND ctrls[] = { G.combo, G.rescan, G.listChk, G.freeChk, G.status };
     for (HWND c : ctrls) SendMessageW(c, WM_SETFONT, (WPARAM)G.uiFont, TRUE);
+    if (G.iconFont) DeleteObject(G.iconFont);
+    G.iconFont = CreateFontW(-S(15), 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0,
+                             L"Segoe MDL2 Assets");
+    SendMessageW(G.about, WM_SETFONT, (WPARAM)G.iconFont, TRUE);
+}
+
+static void show_about() {
+    static const wchar_t license[] =
+        L"MIT License\n\nCopyright (c) 2026 Jayson Brush\n\n"
+        L"Permission is hereby granted, free of charge, to any person obtaining a copy of this software and "
+        L"associated documentation files (the \"Software\"), to deal in the Software without restriction, "
+        L"including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, "
+        L"and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, "
+        L"subject to the following conditions:\n\n"
+        L"The above copyright notice and this permission notice shall be included in all copies or substantial "
+        L"portions of the Software.\n\n"
+        L"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT "
+        L"LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO "
+        L"EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER "
+        L"IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR "
+        L"THE USE OR OTHER DEALINGS IN THE SOFTWARE.";
+    wchar_t title[64];
+    fmtw(title, 64, L"DriveScanner %ls", APP_VERSION);
+    TASKDIALOGCONFIG tc = { sizeof(tc) };
+    tc.hwndParent = G.main;
+    tc.hInstance = G.inst;
+    tc.dwFlags = TDF_USE_HICON_MAIN | TDF_ALLOW_DIALOG_CANCELLATION | TDF_POSITION_RELATIVE_TO_WINDOW;
+    tc.dwCommonButtons = TDCBF_OK_BUTTON;
+    tc.pszWindowTitle = L"About DriveScanner";
+    tc.hMainIcon = (HICON)LoadImageW(G.inst, MAKEINTRESOURCEW(1), IMAGE_ICON, S(32), S(32), 0);
+    tc.pszMainInstruction = title;
+    tc.pszContent = L"A small, portable disk usage viewer for Windows.\n\n"
+                    L"Copyright \x00A9 2026 Jayson Brush\nReleased under the MIT License.";
+    tc.pszExpandedInformation = license;
+    tc.pszCollapsedControlText = L"Show license";
+    tc.pszExpandedControlText = L"Hide license";
+    TaskDialogIndirect(&tc, NULL, NULL, NULL);
+    if (tc.hMainIcon) DestroyIcon(tc.hMainIcon);
 }
 
 static void layout_main() {
@@ -1489,6 +1530,7 @@ static void layout_main() {
     MoveWindow(G.rescan, S(342), y, S(90), h, TRUE);
     MoveWindow(G.listChk, S(448), y, S(100), h, TRUE);
     MoveWindow(G.freeChk, S(552), y, S(110), h, TRUE);
+    MoveWindow(G.about, rc.right - S(12) - h, y, h, h, TRUE);
     MoveWindow(G.view, 0, tb, rc.right, rc.bottom - tb - statusH, TRUE);
 }
 
@@ -1507,6 +1549,16 @@ static LRESULT CALLBACK main_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                                     0, 0, 0, 0, h, (HMENU)ID_FREE, G.inst, NULL);
         G.showFree = true;
         SendMessageW(G.freeChk, BM_SETCHECK, BST_CHECKED, 0);
+        G.about = CreateWindowExW(0, WC_BUTTONW, L"\xE946", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+                                  0, 0, 0, 0, h, (HMENU)ID_ABOUT, G.inst, NULL);
+        G.tip = CreateWindowExW(0, TOOLTIPS_CLASSW, NULL, WS_POPUP | TTS_ALWAYSTIP, 0, 0, 0, 0, h, NULL, G.inst,
+                                NULL);
+        TTTOOLINFOW ti = { sizeof(ti) };
+        ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+        ti.hwnd = h;
+        ti.uId = (UINT_PTR)G.about;
+        ti.lpszText = (LPWSTR)L"About";
+        SendMessageW(G.tip, TTM_ADDTOOLW, 0, (LPARAM)&ti);
         G.status = CreateWindowExW(0, STATUSCLASSNAMEW, NULL, WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
                                    0, 0, 0, 0, h, NULL, G.inst, NULL);
         G.view = CreateWindowExW(0, L"DriveScannerView", NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
@@ -1555,6 +1607,9 @@ static LRESULT CALLBACK main_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             SetFocus(G.view);
         } else if (LOWORD(wp) == ID_RESCAN) {
             start_scan(selected_drive());
+            SetFocus(G.view);
+        } else if (LOWORD(wp) == ID_ABOUT) {
+            show_about();
             SetFocus(G.view);
         } else if (LOWORD(wp) == ID_FREE) {
             G.showFree = SendMessageW(G.freeChk, BM_GETCHECK, 0, 0) == BST_CHECKED;
