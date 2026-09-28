@@ -10,6 +10,7 @@ A small, portable disk usage viewer for Windows.
 - The breadcrumb at the top jumps back to any parent folder.
 - Right-click any item for **Open in Explorer** or **Copy path**.
 - F5 rescans.
+- The ⓘ button (top right) shows the version, copyright, and license.
 
 ## Scanning
 
