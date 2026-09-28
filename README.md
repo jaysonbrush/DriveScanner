@@ -14,6 +14,10 @@ DriveScanner scans a drive and shows how its space is used, either as concentric
 - Open in Explorer and copy path for any file or folder
 - Per-monitor high-DPI support
 
+## Requirements
+
+Windows 8.1 / Windows Server 2012 R2 or later, x64.
+
 ## Scanning
 
 | Mode | Used when | Notes |
