@@ -628,11 +628,11 @@ static const float ROW_H = 26.0f;
 static const int LEVELS = 6;
 static const int TOOLBAR = 48;        // toolbar height in the main window (DIPs)
 
-enum { ID_COMBO = 100, ID_RESCAN, ID_LIST };
+enum { ID_COMBO = 100, ID_RESCAN, ID_LIST, ID_FREE };
 
 static struct {
     HINSTANCE inst;
-    HWND main, view, combo, rescan, listChk, status;
+    HWND main, view, combo, rescan, listChk, freeChk, status;
     HFONT uiFont;
     UINT dpi;
 
@@ -644,7 +644,7 @@ static struct {
 
     Tree* tree;
     u32 root;
-    bool listMode;
+    bool listMode, showFree;
 
     ScanJob* job;
     HANDLE scanThread;
@@ -851,7 +851,7 @@ static void layout_rings(D2D1_SIZE_F sz) {
     G.ringW = (R - G.r0) / LEVELS;
     // At the drive level, the inner ring also shows free space so used vs. free is to scale.
     double used = (double)G.tree->n[0].size, freeb = (double)G.tree->volFree;
-    if (G.root == 0 && freeb > 0 && used + freeb > 0) {
+    if (G.showFree && G.root == 0 && freeb > 0 && used + freeb > 0) {
         double split = 2 * PI * used / (used + freeb);
         G.hueScale = (float)(2 * PI / split);
         build_segs(G.root, 1, 0, split);
@@ -895,20 +895,12 @@ static void draw_seg_label(Seg* s) {
     float wr = G.ringW / (sn > 0.01f ? sn : 0.01f), wa = arc / (cs > 0.01f ? cs : 0.01f);
     float hr = G.ringW / (cs > 0.01f ? cs : 0.01f), ha = arc / (sn > 0.01f ? sn : 0.01f);
     float w = (wr < wa ? wr : wa) * 0.86f, h = (hr < ha ? hr : ha) * 0.86f;
-    u32 color = 0x202020;
-    if (s->node == FREE_SPACE) {
-        // Nothing sits outside the free slice, so label it in the empty ring beyond.
-        rMid += G.ringW;
-        w = text_width(L"Free space", 10, G.fCenter) + 4;
-        h = 18;
-        color = C_MUTED;
-    }
     if (w > 150) w = 150;
     if (w < 36 || h < 15) return;
     wchar_t name[300];
-    int len = s->node == FREE_SPACE ? fmtw(name, 300, L"Free space") : node_name(s->node, name, 300);
+    int len = s->node == FREE_SPACE ? fmtw(name, 300, L"Free") : node_name(s->node, name, 300);
     float px = G.cx + rMid * sinf(mid), py = G.cy - rMid * cosf(mid);
-    draw_text(name, len, G.fCenter, px - w / 2, py - 9, px + w / 2, py + 9, rgb(color));
+    draw_text(name, len, G.fCenter, px - w / 2, py - 9, px + w / 2, py + 9, rgb(0x202020));
 }
 
 static void draw_tooltip(u32 node, D2D1_SIZE_F sz) {
@@ -1467,7 +1459,7 @@ static void update_fonts() {
     SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0, G.dpi);
     if (G.uiFont) DeleteObject(G.uiFont);
     G.uiFont = CreateFontIndirectW(&ncm.lfMessageFont);
-    HWND ctrls[] = { G.combo, G.rescan, G.listChk, G.status };
+    HWND ctrls[] = { G.combo, G.rescan, G.listChk, G.freeChk, G.status };
     for (HWND c : ctrls) SendMessageW(c, WM_SETFONT, (WPARAM)G.uiFont, TRUE);
 }
 
@@ -1481,7 +1473,8 @@ static void layout_main() {
     int y = S(10), h = S(28);
     MoveWindow(G.combo, S(12), y, S(320), S(400), TRUE);
     MoveWindow(G.rescan, S(342), y, S(90), h, TRUE);
-    MoveWindow(G.listChk, S(448), y, S(110), h, TRUE);
+    MoveWindow(G.listChk, S(448), y, S(100), h, TRUE);
+    MoveWindow(G.freeChk, S(552), y, S(110), h, TRUE);
     MoveWindow(G.view, 0, tb, rc.right, rc.bottom - tb - statusH, TRUE);
 }
 
@@ -1496,6 +1489,10 @@ static LRESULT CALLBACK main_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                                    0, 0, 0, 0, h, (HMENU)ID_RESCAN, G.inst, NULL);
         G.listChk = CreateWindowExW(0, WC_BUTTONW, L"List view", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX,
                                     0, 0, 0, 0, h, (HMENU)ID_LIST, G.inst, NULL);
+        G.freeChk = CreateWindowExW(0, WC_BUTTONW, L"Free space", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX,
+                                    0, 0, 0, 0, h, (HMENU)ID_FREE, G.inst, NULL);
+        G.showFree = true;
+        SendMessageW(G.freeChk, BM_SETCHECK, BST_CHECKED, 0);
         G.status = CreateWindowExW(0, STATUSCLASSNAMEW, NULL, WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
                                    0, 0, 0, 0, h, NULL, G.inst, NULL);
         G.view = CreateWindowExW(0, L"ScannerView", NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
@@ -1544,6 +1541,12 @@ static LRESULT CALLBACK main_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             SetFocus(G.view);
         } else if (LOWORD(wp) == ID_RESCAN) {
             start_scan(selected_drive());
+            SetFocus(G.view);
+        } else if (LOWORD(wp) == ID_FREE) {
+            G.showFree = SendMessageW(G.freeChk, BM_GETCHECK, 0, 0) == BST_CHECKED;
+            G.hover = NONE;
+            G.layoutDirty = true;
+            InvalidateRect(G.view, NULL, FALSE);
             SetFocus(G.view);
         } else if (LOWORD(wp) == ID_LIST) {
             G.listMode = SendMessageW(G.listChk, BM_GETCHECK, 0, 0) == BST_CHECKED;
