@@ -1,0 +1,6 @@
+*.exe
+*.pdb
+*.obj
+*.res
+zig-cache/
+.zig-cache/
