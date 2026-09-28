@@ -961,11 +961,25 @@ static void draw_rings(D2D1_SIZE_F sz) {
     fmt_size(n[G.root].size, sizeStr, 32);
     fmt_num(n[G.root].files, files);
     float w = G.r0 * 1.7f;
-    draw_text(name, len, G.fTitle, G.cx - w / 2, G.cy - 30, G.cx + w / 2, G.cy - 8, rgb(C_TEXT));
-    draw_text(sizeStr, (int)wcslen(sizeStr), G.fCenter, G.cx - w / 2, G.cy - 8, G.cx + w / 2, G.cy + 10,
-              rgb(C_TEXT));
-    int l3 = fmtw(line, 64, L"%ls files", files);
-    draw_text(line, l3, G.fCenter, G.cx - w / 2, G.cy + 8, G.cx + w / 2, G.cy + 26, rgb(C_MUTED));
+    if (G.root == 0 && G.tree->volTotal) {
+        // Drive level: used and total space of the volume, like the header.
+        wchar_t used[32], total[32];
+        fmt_size(G.tree->volTotal - G.tree->volFree, used, 32);
+        fmt_size(G.tree->volTotal, total, 32);
+        draw_text(name, len, G.fTitle, G.cx - w / 2, G.cy - 38, G.cx + w / 2, G.cy - 16, rgb(C_TEXT));
+        int l2 = fmtw(line, 64, L"%ls used", used);
+        draw_text(line, l2, G.fCenter, G.cx - w / 2, G.cy - 16, G.cx + w / 2, G.cy + 2, rgb(C_TEXT));
+        l2 = fmtw(line, 64, L"of %ls", total);
+        draw_text(line, l2, G.fCenter, G.cx - w / 2, G.cy + 1, G.cx + w / 2, G.cy + 19, rgb(C_TEXT));
+        l2 = fmtw(line, 64, L"%ls files", files);
+        draw_text(line, l2, G.fCenter, G.cx - w / 2, G.cy + 20, G.cx + w / 2, G.cy + 38, rgb(C_MUTED));
+    } else {
+        draw_text(name, len, G.fTitle, G.cx - w / 2, G.cy - 30, G.cx + w / 2, G.cy - 8, rgb(C_TEXT));
+        draw_text(sizeStr, (int)wcslen(sizeStr), G.fCenter, G.cx - w / 2, G.cy - 8, G.cx + w / 2, G.cy + 10,
+                  rgb(C_TEXT));
+        int l3 = fmtw(line, 64, L"%ls files", files);
+        draw_text(line, l3, G.fCenter, G.cx - w / 2, G.cy + 8, G.cx + w / 2, G.cy + 26, rgb(C_MUTED));
+    }
     if (G.root != 0 && G.r0 > 48)
         draw_text(L"\xE74A  Up", 5, G.fCenter, G.cx - w / 2, G.cy + 28, G.cx + w / 2, G.cy + 46,
                   rgb(G.hoverCenter ? C_ACCENT : C_MUTED));
