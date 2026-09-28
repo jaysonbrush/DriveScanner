@@ -39,3 +39,7 @@ src\DriveScanner.manifest   per-monitor DPI, visual styles, long paths
 tools\make-icon.ps1         generates the icon
 build.ps1                   build script
 ```
+
+## License
+
+MIT. Copyright (c) 2026 Jayson Brush. See [LICENSE](LICENSE).

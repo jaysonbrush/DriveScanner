@@ -13,7 +13,9 @@ BEGIN
     BEGIN
         BLOCK "040904B0"
         BEGIN
+            VALUE "CompanyName", "Jayson Brush"
             VALUE "FileDescription", "DriveScanner - disk usage viewer"
+            VALUE "LegalCopyright", "Copyright (c) 2026 Jayson Brush. MIT License."
             VALUE "FileVersion", "1.0.0"
             VALUE "ProductName", "DriveScanner"
             VALUE "ProductVersion", "1.0.0"
