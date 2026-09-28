@@ -284,7 +284,8 @@ static void mft_record(Tree* t, MftRec* recs, u64 recCount, u8* r, u32 recSize, 
                     m->flags |= MR_NAMED;
                 }
             }
-        } else if (type == 0x80 && nonRes && len >= 64) {
+        } else if (type == 0x80 && nonRes && len >= 64 && idx != 8) {
+            // Record 8 is $BadClus: its $Bad stream spans the whole volume without using it.
             // Size on disk of every data stream: allocated size, or the
             // total allocated size when the stream is compressed or sparse.
             if (*(u64*)(a + 16) == 0) {
@@ -899,9 +900,11 @@ static void draw_seg_label(Seg* s) {
     float hr = G.ringW / (cs > 0.01f ? cs : 0.01f), ha = arc / (sn > 0.01f ? sn : 0.01f);
     float w = (wr < wa ? wr : wa) * 0.86f, h = (hr < ha ? hr : ha) * 0.86f;
     if (w > 150) w = 150;
-    if (w < 36 || h < 15) return;
+    if (w < 16 || h < 15) return;
     wchar_t name[300];
     int len = s->node == FREE_SPACE ? fmtw(name, 300, L"Free") : node_name(s->node, name, 300);
+    // Draw when the whole name fits, or when there's room for a readable truncation.
+    if (w < 36 && text_width(name, len, G.fCenter) + 2 > w) return;
     float px = G.cx + rMid * sinf(mid), py = G.cy - rMid * cosf(mid);
     draw_text(name, len, G.fCenter, px - w / 2, py - 9, px + w / 2, py + 9, rgb(0x202020));
 }
@@ -1260,7 +1263,8 @@ static void scan_done(u32 id) {
     if (G.tree->errors) {
         wchar_t e[32];
         fmt_num(G.tree->errors, e);
-        len += fmtw(s + len, 512 - len, L"  \x00B7  %ls folders couldn't be read", e);
+        len += fmtw(s + len, 512 - len, L"  \x00B7  %ls %ls couldn't be read", e,
+                    G.tree->errors == 1 ? L"folder" : L"folders");
     }
     if (!G.tree->mft) fmtw(s + len, 512 - len, L"  \x00B7  run as administrator for a faster, complete scan");
     set_status(s);

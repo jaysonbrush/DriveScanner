@@ -2,6 +2,8 @@
 
 A small, portable disk usage viewer for Windows.
 
+![DriveScanner rings view](docs/screenshot.png)
+
 DriveScanner scans a drive and shows how its space is used, either as concentric rings (one ring per folder level) or as a size-sorted tree list. It is a single self-contained executable of about 115 KB, with no installer, no dependencies, and no settings written to disk.
 
 ## Features
